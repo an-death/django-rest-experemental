@@ -86,6 +86,11 @@ settings.configure(
         'PAGE_SIZE': 10
     }
 )
+REDIS_HOST = 'localhost'
+REDIS_PORT = '6379'
+BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 3600}
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 import django
 
@@ -278,7 +283,14 @@ def return_application():
 
 
 if __name__ == "__main__":
+    import os
+    import subprocess
     from django.core.management import execute_from_command_line
+
+    cur_env = os.environ.copy()
+    cur_env["PATH"] = "" + cur_env["PATH"]
+    redis = subprocess.Popen('redis-server', shell=True, stdout=subprocess.PIPE, env=cur_env)
+    celery = subprocess.Popen('celery -A django_rest beat', shell=True, stdout=subprocess.PIPE, env=cur_env)
 
     execute_from_command_line(sys.argv)
 else:

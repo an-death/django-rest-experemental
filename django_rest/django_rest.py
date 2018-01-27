@@ -73,23 +73,44 @@ settings.configure(
     REST_FRAMEWORK={
         'DEFAULT_PERMISSION_CLASSES': [
             'rest_framework.permissions.IsAdminUser',
-        'rest_framework.permissions.IsAuthenticated',
+            'rest_framework.permissions.IsAuthenticated',
         ],
         'DEFAULT_AUTHENTICATION_CLASSES': (
             'rest_framework.authentication.TokenAuthentication',
+            'rest_framework.authentication.BasicAuthentication',
+            'rest_framework.authentication.SessionAuthentication',
+        ),
+        'DEFAULT_FILTER_BACKENDS': (
+            'django_filters.rest_framework.DjangoFilterBackend',
         ),
         'PAGE_SIZE': 10
     }
 )
 
-
 import django
 
 django.setup()  # responsible for populating the application registry.
 
-
 ###################################################################################
 #  SETTINGS END
+###################################################################################
+###################################################################################
+# DJANGO VALIDATORS
+###################################################################################
+from django.utils.translation import gettext_lazy
+from rest_framework.exceptions import ValidationError
+
+class LowerCaseUnique(object):
+    def __init__(self, type):
+        self.type = type
+        self.error_message = gettext_lazy('Duplicate values are not allow')
+
+    def __call__(self, field_data, all_data):
+        for t in globals()[self.type].effective.all():
+            if field_data.lower() == t.name:
+                raise ValidationError(self.error_message)
+###################################################################################
+# DJANGO VALIDATORS END
 ###################################################################################
 
 ###################################################################################
@@ -100,19 +121,18 @@ from django.contrib import admin
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class Word(models.Model):
-    id = models.IntegerField(primary_key=True)
-    word = models.CharField(max_length=200, unique=True)
+    key_word = models.CharField(max_length=200, unique=True, validators=[LowerCaseUnique])
     class Meta:
         app_label = APP_LABEL
 
 
 class Vacancies(models.Model):
-    id = models.IntegerField(primary_key=True)
+    key_word = models.ForeignKey(Word,on_delete=models.CASCADE, related_name='vacancies' )
     date = models.DateTimeField()
     title = models.CharField(max_length=200)
     url = models.CharField(max_length=400)
-    words = models.ManyToManyField(Word, 'vacancies')
 
     class Meta:
         app_label = APP_LABEL
@@ -130,6 +150,15 @@ admin.autodiscover()
 # AUTHENTICATION
 ###################################################################################
 from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.permissions import IsAuthenticated, AllowAny
+#
+#
+# class ActionBasedPermission(AllowAny):
+#     def has_permission(self, request, view):
+#         for klass, actions in getattr(view, 'action_permissions', {}).items():
+#             if view.action in actions:
+#                 return klass().has_permission(request, view)
+#         return False
 
 ###################################################################################
 # AUTHENTICATION END
@@ -138,8 +167,12 @@ from rest_framework.authtoken.views import obtain_auth_token
 ###################################################################################
 # REST--API
 ###################################################################################
-from rest_framework import serializers
+from rest_framework import serializers, status
 from rest_framework import viewsets
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.response import Response
+from rest_framework.decorators import list_route, detail_route
+from django_filters.rest_framework import DjangoFilterBackend
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -148,39 +181,54 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('username', 'email')
 
 
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
 
 class WordSerializer(serializers.ModelSerializer):
+    def create(self, validated_data):
+        key_word = validated_data['key_word'].capitalize()
+        try:
+            instance = Word.objects.create(
+                key_word=key_word
+            )
+            instance.save()
+        except django.db.utils.IntegrityError:
+            raise ValidationError(detail='{key_word: [ word with this key word already exists.]}',
+                                  code=status.HTTP_400_BAD_REQUEST)
+        return instance
+
+    def destroy(self):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
     class Meta:
         model = Word
-        fields = ('keyword', 'id')
+        fields = ('key_word', 'id')
 
-    def create(self, validated_data):
-        word = Word.objects.create(
-            word=validated_data['keyword'],
-        )
-        word.save()
 
-    def delete(self, ):
-        pass
-
-class WordViewSet(viewsets.ReadOnlyModelViewSet):
+class WordViewSet(viewsets.ModelViewSet):
     queryset = Word.objects.all()
     serializer_class = WordSerializer
+    permission_classes = (IsAuthenticated,)
+    lookup_field = 'id'
 
+    action_permissions = {
+        IsAuthenticated: ['destroy', 'list', 'create', ],
+        AllowAny: ['retrieve']
+    }
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
 
-class VacanciesSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Vacancies
-        fields = ('title', 'id', 'url')
-
-class VacanciesViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Vacancies.objects.all()
-    serializer_class = VacanciesSerializer
-
+    @detail_route(permission_classes=[IsAuthenticated])
+    def vacancies(self, request, id=None):
+        word = Word.objects.get(pk=id)
+        return Response(word.vacancies.all())
 
 #####################################################################################
 # REST--API END
@@ -195,10 +243,10 @@ from rest_framework import routers
 from django.http import HttpResponse
 from django.contrib import admin
 
-router = routers.DefaultRouter()
-router.register(r'words', WordViewSet)
+router = routers.SimpleRouter()
+router.register(r'words', WordViewSet, base_name='word')
 router.register(r'users', UserViewSet)
-router.register(r'vacancies', VacanciesViewSet)
+
 
 def index(request):
     """ index """
@@ -211,6 +259,8 @@ urlpatterns = [
     url(r'^api/', include(router.urls)),
     url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     url(r'^api-token-auth/', obtain_auth_token),
+    # url(r'^words/P<pk>/vacancies/$', VacanciesViewSet.as_view({'get': 'list'}))
+
 ]
 
 ######################################################################################

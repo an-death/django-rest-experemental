@@ -1,5 +1,6 @@
 from django.http import HttpResponse
 from django.db.utils import IntegrityError
+import json
 
 
 def index(request):
@@ -10,8 +11,6 @@ def index(request):
 ###################################################################################
 # REST--API
 ###################################################################################
-
-
 from rest_framework import serializers, status
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -58,7 +57,7 @@ class WordSerializer(serializers.ModelSerializer):
             )
             instance.save()
         except IntegrityError:
-            raise ValidationError(detail='{key_word: [ word with this key word already exists.]}',
+            raise ValidationError(detail=json.loads('{"key_word": ["word with this key word already exists."]}'),
                                   code=status.HTTP_400_BAD_REQUEST)
         return instance
 

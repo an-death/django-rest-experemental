@@ -31,22 +31,19 @@ RUN pip install django
 RUN pip install djangorestframework
 
 # Install redis, celery
-#RUN apt-get -y install redis-server
-# Doesn't work at all^
-RUN cd /tmp && curl -O http://download.redis.io/redis-stable.tar.gz  && tar xzvf redis-stable.tar.gz && cd redis-stable
-RUN make
-RUN make test
-RUN make install
-RUN redis-stable/install-server.sh
 
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y redis-server \
+ && sed 's/^daemonize yes/daemonize no/' -i /etc/redis/redis.conf \
+ && sed 's/^bind 127.0.0.1/bind 0.0.0.0/' -i /etc/redis/redis.conf \
+ && sed 's/^# unixsocket /unixsocket /' -i /etc/redis/redis.conf \
+ && sed 's/^# unixsocketperm 755/unixsocketperm 777/' -i /etc/redis/redis.conf \
+ && sed '/^logfile/d' -i /etc/redis/redis.conf \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN service redis-server start
+#RUN service redis-server start &
 RUN pip install celery[redis]
 RUN pip install django-celery-results
-
-# Install openssh
-RUN apt-get -y install openssh-server
-RUN perl -pi -e 's/PermitRootLogin without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 
 # By default, allow unlimited file sizes, modify it to limit the file sizes
@@ -94,15 +91,14 @@ RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Add django app
-COPY ../django_rest /app
+# Add django
+COPY ./* /django_rest/
 
-#RUN mkdir /app
-WORKDIR /app/django_rest
+WORKDIR /django_rest
 
 RUN pip install -r requirements.txt
-RUN service redis-server start
-RUN celery -A django_rest &
+#RUN service redis-server start &
+#RUN celery -A django_rest &
 EXPOSE 80
 
 CMD ["/usr/bin/supervisord"]

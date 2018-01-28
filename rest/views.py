@@ -80,6 +80,7 @@ class WordViewSet(viewsets.ModelViewSet):
     serializer_class = WordSerializer
     permission_classes = (IsAuthenticated,)
     lookup_field = 'id'
+    filter_backends = (DjangoFilterBackend,)
 
     action_permissions = {
         IsAuthenticated: ['destroy', 'list', 'create', ],

@@ -56,7 +56,6 @@ venv.bak/
 .spyderproject
 .spyproject
 .ropeproject
-settings.py
 /site
 .mypy_cache/
 .idea/django_rest.iml

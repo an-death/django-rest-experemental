@@ -88,7 +88,17 @@ class WordViewSet(viewsets.ModelViewSet):
     }
     authentication_classes = (TokenAuthentication, SessionAuthentication)
 
+    def get_queryset(self):
+        return Word.objects.values('id', 'key_word')
+
     @detail_route(permission_classes=[IsAuthenticated])
     def vacancies(self, request, id=None):
         word = WordSerializer(instance=Word.objects.get(pk=id))
-        return Response(word.data.get('vacancies'))
+        vac = word.data.get('vacancies')
+
+        page = self.paginate_queryset(vac)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(page, many=True)
+        return Response(serializer.data)

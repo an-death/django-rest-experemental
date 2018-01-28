@@ -95,6 +95,9 @@ settings.configure(
     CELERY_RESULT_BACKEND='redis://localhost:6379/0',
     CELERYBEAT_SCHEDULER='djcelery.schedulers.DatabaseScheduler',
     CELERY_ALWAYS_EAGER=False,
+    CELERY_ACCEPT_CONTENT = ['application/json'],
+    CELERY_TASK_SERIALIZER = 'json',
+    CELERY_RESULT_SERIALIZER = 'json'
 )
 
 import django
@@ -152,7 +155,8 @@ class Vacancies(models.Model):
 
     class Meta:
         app_label = APP_LABEL
-
+        unique_together = ('url', 'id')
+        ordering = ['date']
 
 admin.site.register(Word)
 admin.site.register(Vacancies)
@@ -202,7 +206,19 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
 
 
+class VacanciesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vacancies
+        fields = ('title', 'id', 'url')
+
+class VacanciesViewSet(viewsets.ModelViewSet):
+    queryset = Vacancies.objects.all()
+    serializer_class = VacanciesSerializer
+
+
 class WordSerializer(serializers.ModelSerializer):
+    vacancies = VacanciesSerializer(many=True, read_only=True)
+
     def create(self, validated_data):
         key_word = validated_data['key_word'].capitalize()
         try:
@@ -225,8 +241,8 @@ class WordSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Word
-        fields = ('key_word', 'id')
-
+        fields = ('key_word', 'id', 'vacancies')
+        extra_kwargs = {'vacancies': {'lookup_field': 'id','view_name': 'words-vacancies' }}
 
 class WordViewSet(viewsets.ModelViewSet):
     queryset = Word.objects.all()
@@ -242,8 +258,11 @@ class WordViewSet(viewsets.ModelViewSet):
 
     @detail_route(permission_classes=[IsAuthenticated])
     def vacancies(self, request, id=None):
-        word = Word.objects.get(pk=id)
-        return Response(word.vacancies.all())
+        word = WordSerializer(instance=Word.objects.get(pk=id))
+        return Response(word.data.get('vacancies'))
+
+
+
 
 
 #####################################################################################
@@ -262,6 +281,7 @@ from django.contrib import admin
 router = routers.SimpleRouter()
 router.register(r'words', WordViewSet, base_name='word')
 router.register(r'users', UserViewSet)
+router.register(r'vacancies', VacanciesViewSet)
 
 
 def index(request):
@@ -282,14 +302,12 @@ urlpatterns = [
 ######################################################################################
 # URLS AND VIEWS END
 ######################################################################################
-
 from celery import Celery
 from celery.schedules import crontab
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_rest.settings')
 app = Celery('django_rest')
 app.config_from_object('django.conf:settings')
-
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 app.conf.beat_schedule = {
     'send-report-every-single-minute': {
@@ -298,7 +316,44 @@ app.conf.beat_schedule = {
     },
 }
 
-######################################################################################
+from datetime import datetime
+import requests
+
+
+@app.task()
+def check_out_vacancies():
+    for word in Word.objects.all():
+        s = requests.Session()
+        cur_page = 0
+        url = f'https://api.hh.ru/vacancies?text={word}&resume_search_fields=everywhere&per_page=100&page={cur_page}'
+        headers = {'User-Agent': 'django_rest_api-test-agent'}
+        vacansies = s.get(url, headers=headers).json()
+        max_page = vacansies['pages']
+        while cur_page <= max_page:
+            for v in vacansies['items']:
+                key_word = word
+                title = v['name']
+                date = v['published_at']
+                url = v['alternate_url']
+                # id = v['id']
+                try:
+                    instance = Vacancies.objects.create(
+                        key_word=key_word,
+                        title=title,
+                        date=datetime.strptime(date.split('+')[0], '%Y-%m-%dT%X'),
+                        url=url
+                    )
+                    instance.save()
+                except Exception as e:
+                    print(e)
+                    continue
+            url = f'https://api.hh.ru/vacancies?text={word}&resume_search_fields=everywhere&per_page=100&page={cur_page}'
+            vacansies = s.get(url, headers=headers).json()
+            max_page = vacansies['pages']
+            cur_page = vacansies['page']
+
+
+#######################################
 # MAIN
 ######################################################################################
 from django.core.wsgi import get_wsgi_application

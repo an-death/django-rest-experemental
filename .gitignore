@@ -1,6 +1,5 @@
 .idea/
 __pycache__/
-*.py[cod]
 *$py.class
 *.so
 .Python
@@ -60,3 +59,5 @@ venv.bak/
 .ropeproject
 /site
 .mypy_cache/
+celerybeat.pid
+django_rest/db.sqlite3

@@ -1,10 +1,10 @@
-from .celery import app
-from .django_rest import Word, Vacancies
+from django_rest.django_rest import Word, Vacancies
 from datetime import datetime
 import requests
+from .django_rest import app
 
 
-@app.task
+@app.task()
 def check_out_vacancies():
     for word in Word.objects.all():
         s = requests.Session()
@@ -19,10 +19,10 @@ def check_out_vacancies():
             # id = v['id']
             try:
                 instance = Vacancies.objects.create(
-                key_word=key_word,
-                title=title,
-                date=datetime.strptime(date, '%Y-%m-%dT%X%z'),
-                url = url
+                    key_word=key_word,
+                    title=title,
+                    date=datetime.strptime(date, '%Y-%m-%dT%X%z'),
+                    url=url
                 )
                 instance.save()
             except Exception as e:

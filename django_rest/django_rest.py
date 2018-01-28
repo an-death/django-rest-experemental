@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import os
 import sys
 from django.conf import settings
@@ -39,6 +41,7 @@ settings.configure(
         'django.contrib.staticfiles',
         'rest_framework',
         'rest_framework.authtoken',
+        'djcelery',
     ],
     STATIC_URL='/static/',
     STATICFILES_DIRS=[
@@ -84,17 +87,21 @@ settings.configure(
             'django_filters.rest_framework.DjangoFilterBackend',
         ),
         'PAGE_SIZE': 10
-    }
+    },
+    REDIS_HOST='localhost',
+    REDIS_PORT='6379',
+    BROKER_URL='redis://localhost:6379/0',
+    BROKER_TRANSPORT_OPTIONS={'visibility_timeout': 3600},
+    CELERY_RESULT_BACKEND='redis://localhost:6379/0',
+    CELERYBEAT_SCHEDULER='djcelery.schedulers.DatabaseScheduler',
+    CELERY_ALWAYS_EAGER=False,
 )
-REDIS_HOST = 'localhost'
-REDIS_PORT = '6379'
-BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
-BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 3600}
-CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 
 import django
+import djcelery
 
 django.setup()  # responsible for populating the application registry.
+djcelery.setup_loader()
 
 ###################################################################################
 #  SETTINGS END
@@ -105,6 +112,7 @@ django.setup()  # responsible for populating the application registry.
 from django.utils.translation import gettext_lazy
 from rest_framework.exceptions import ValidationError
 
+
 class LowerCaseUnique(object):
     def __init__(self, type):
         self.type = type
@@ -114,6 +122,8 @@ class LowerCaseUnique(object):
         for t in globals()[self.type].effective.all():
             if field_data.lower() == t.name:
                 raise ValidationError(self.error_message)
+
+
 ###################################################################################
 # DJANGO VALIDATORS END
 ###################################################################################
@@ -129,12 +139,13 @@ from django.contrib.auth.models import User
 
 class Word(models.Model):
     key_word = models.CharField(max_length=200, unique=True, validators=[LowerCaseUnique])
+
     class Meta:
         app_label = APP_LABEL
 
 
 class Vacancies(models.Model):
-    key_word = models.ForeignKey(Word,on_delete=models.CASCADE, related_name='vacancies' )
+    key_word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name='vacancies')
     date = models.DateTimeField()
     title = models.CharField(max_length=200)
     url = models.CharField(max_length=400)
@@ -186,7 +197,6 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('username', 'email')
 
 
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -235,6 +245,7 @@ class WordViewSet(viewsets.ModelViewSet):
         word = Word.objects.get(pk=id)
         return Response(word.vacancies.all())
 
+
 #####################################################################################
 # REST--API END
 #####################################################################################
@@ -272,6 +283,21 @@ urlpatterns = [
 # URLS AND VIEWS END
 ######################################################################################
 
+from celery import Celery
+from celery.schedules import crontab
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_rest.settings')
+app = Celery('django_rest')
+app.config_from_object('django.conf:settings')
+
+app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
+app.conf.beat_schedule = {
+    'send-report-every-single-minute': {
+        'task': 'task.check_out_vacancies',
+        'schedule': crontab(),
+    },
+}
+
 ######################################################################################
 # MAIN
 ######################################################################################
@@ -283,15 +309,14 @@ def return_application():
 
 
 if __name__ == "__main__":
-    import os
     import subprocess
+    import redis
+    import django.conf
     from django.core.management import execute_from_command_line
 
-    cur_env = os.environ.copy()
-    cur_env["PATH"] = "" + cur_env["PATH"]
-    redis = subprocess.Popen('redis-server', shell=True, stdout=subprocess.PIPE, env=cur_env)
-    celery = subprocess.Popen('celery -A django_rest beat', shell=True, stdout=subprocess.PIPE, env=cur_env)
-
+    r = redis.StrictRedis(host=django.conf.settings.REDIS_HOST, port=django.conf.settings.REDIS_PORT, db=0)
+    subprocess.Popen('/home/as/.local/share/virtualenvs/git-v89RtG6-/bin/celery -A django_rest beat', shell=True,
+                     stdout=subprocess.PIPE)
     execute_from_command_line(sys.argv)
 else:
     return_application()

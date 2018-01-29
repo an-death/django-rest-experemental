@@ -1,6 +1,7 @@
+import json
+
 from django.http import HttpResponse
 from django.db.utils import IntegrityError
-import json
 
 
 def index(request):
@@ -17,8 +18,8 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
-from rest_framework.decorators import list_route, detail_route
 from django_filters.rest_framework import DjangoFilterBackend
+from rest.filters import DTFilter
 
 from rest.models import Word, Vacancies
 from django.contrib.auth.models import User
@@ -38,13 +39,23 @@ class UserViewSet(viewsets.ModelViewSet):
 class VacanciesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vacancies
-        fields = ('title', 'id', 'url')
-
+        fields = ('title', 'id', 'url', 'date')
 
 class VacanciesViewSet(viewsets.ModelViewSet):
     queryset = Vacancies.objects.all()
     serializer_class = VacanciesSerializer
 
+    # permissions
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    # filters
+    filter_backends = (DjangoFilterBackend,)
+    filter_fields = ('date',)
+    filter_class = DTFilter
+
+    def get_queryset(self):
+        return self.filter_queryset(Vacancies.objects. \
+                                    filter(key_word=self.kwargs['key_word']))
 
 class WordSerializer(serializers.ModelSerializer):
     vacancies = VacanciesSerializer(many=True, read_only=True)
@@ -52,9 +63,7 @@ class WordSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         key_word = validated_data['key_word'].capitalize()
         try:
-            instance = Word.objects.create(
-                key_word=key_word
-            )
+            instance = Word.objects.create(key_word=key_word)
             instance.save()
         except IntegrityError:
             raise ValidationError(detail=json.loads('{"key_word": ["word with this key word already exists."]}'),
@@ -78,27 +87,16 @@ class WordSerializer(serializers.ModelSerializer):
 class WordViewSet(viewsets.ModelViewSet):
     queryset = Word.objects.all()
     serializer_class = WordSerializer
-    permission_classes = (IsAuthenticated,)
     lookup_field = 'id'
+
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
     filter_backends = (DjangoFilterBackend,)
 
     action_permissions = {
         IsAuthenticated: ['destroy', 'list', 'create', ],
         AllowAny: ['retrieve']
     }
-    authentication_classes = (TokenAuthentication, SessionAuthentication)
 
     def get_queryset(self):
         return Word.objects.values('id', 'key_word')
-
-    @detail_route(permission_classes=[IsAuthenticated])
-    def vacancies(self, request, id=None):
-        word = WordSerializer(instance=Word.objects.get(pk=id))
-        vac = word.data.get('vacancies')
-
-        page = self.paginate_queryset(vac)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(page, many=True)
-        return Response(serializer.data)

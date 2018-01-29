@@ -12,7 +12,7 @@ class Word(models.Model):
 
 class Vacancies(models.Model):
     key_word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name='vacancies')
-    date = models.DateTimeField(default=now())
+    date = models.DateField(default=now())
     title = models.CharField(max_length=200)
     url = models.CharField(max_length=400)
 

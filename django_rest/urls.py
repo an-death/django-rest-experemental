@@ -8,7 +8,7 @@ from django.contrib import admin
 router = routers.SimpleRouter()
 router.register(r'words', WordViewSet, base_name='word')
 router.register(r'users', UserViewSet)
-router.register(r'vacancies', VacanciesViewSet)
+router.register(r'words/(?P<key_word>\d+)/vacancies', VacanciesViewSet),
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),

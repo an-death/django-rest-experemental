@@ -27,4 +27,6 @@ vacancies:
 `curl -X GET http://127.0.0.1:5000/api/words/{id}/vacancies/ -H 'authorization: Token $TOKEN'`
 
 parameters: 
-    [date__gte, date__lte, page] 
+    [date__gte, date__lte, date__gt, date__lt, page] 
+    
+    date_format must be : "YYYY-MM-DD"

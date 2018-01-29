@@ -30,3 +30,7 @@ parameters:
     [date__gte, date__lte, date__gt, date__lt, page] 
     
     date_format must be : "YYYY-MM-DD"
+    
+For start celery background task use:
+
+`celery -A django_rest worker -l DEBUG --pool=solo -B &`

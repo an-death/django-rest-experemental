@@ -5,6 +5,7 @@ import sys
 # SETTINGS
 ####################################################################################
 
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path[0] = os.path.dirname(BASE_DIR)
 APP_LABEL = os.path.basename(BASE_DIR)
@@ -13,7 +14,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', os.urandom(32))
 
 DEBUG = os.environ.get('DEBUG', 'on') == 'on'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", '').split()
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -107,11 +108,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10
 }
-REDIS_HOST = 'localhost'
+REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = '6379'
-BROKER_URL = 'redis://localhost:6379/0'
+BROKER_URL = f'redis://{REDIS_HOST}:6379/0'
 BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 3600}
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/0'
 CELERY_ALWAYS_EAGER = False
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'

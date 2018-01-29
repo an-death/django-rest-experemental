@@ -12,6 +12,7 @@ USE_STATIC_PATH=${STATIC_PATH:-'/app/static'}
 
 # Generate Nginx config first part using the environment variables
 echo 'server {
+
     location / {
         try_files $uri @app;
 	    proxy_connect_timeout       600000;
@@ -26,7 +27,7 @@ echo 'server {
 	uwsgi_connect_timeout   7500;
         fastcgi_read_timeout 300000;
         include uwsgi_params;
-        uwsgi_pass unix:///tmp/uwsgi.sock;
+        uwsgi_pass  django
     }
     '"location $USE_STATIC_URL {
         alias $USE_STATIC_PATH;
@@ -39,6 +40,6 @@ echo "    location = / {
     }" >> /etc/nginx/conf.d/nginx.conf
 fi
 # Finish the Nginx config file
-echo "}" >> /etc/nginx/conf.d/nginx.conf
+echo '}' >> /etc/nginx/conf.d/nginx.conf
 
 exec "$@"

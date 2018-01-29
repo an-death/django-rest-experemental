@@ -3,15 +3,6 @@ import json
 from django.http import HttpResponse
 from django.db.utils import IntegrityError
 
-
-def index(request):
-    """ index """
-    return HttpResponse("Hello")
-
-
-###################################################################################
-# REST--API
-###################################################################################
 from rest_framework import serializers, status
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -23,6 +14,11 @@ from rest.filters import DTFilter
 
 from rest.models import Word, Vacancies
 from django.contrib.auth.models import User
+
+
+def index(request):
+    """ index """
+    return HttpResponse("Hello")
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -41,6 +37,7 @@ class VacanciesSerializer(serializers.ModelSerializer):
         model = Vacancies
         fields = ('title', 'id', 'url', 'date')
 
+
 class VacanciesViewSet(viewsets.ModelViewSet):
     queryset = Vacancies.objects.all()
     serializer_class = VacanciesSerializer
@@ -57,6 +54,7 @@ class VacanciesViewSet(viewsets.ModelViewSet):
         return self.filter_queryset(Vacancies.objects. \
                                     filter(key_word=self.kwargs['key_word']))
 
+
 class WordSerializer(serializers.ModelSerializer):
     vacancies = VacanciesSerializer(many=True, read_only=True)
 
@@ -66,8 +64,10 @@ class WordSerializer(serializers.ModelSerializer):
             instance = Word.objects.create(key_word=key_word)
             instance.save()
         except IntegrityError:
-            raise ValidationError(detail=json.loads('{"key_word": ["word with this key word already exists."]}'),
-                                  code=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(
+                detail=json.loads('{"key_word": ["word with this key word already exists."]}'),
+                code=status.HTTP_400_BAD_REQUEST
+            )
         return instance
 
     def destroy(self):

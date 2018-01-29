@@ -1,11 +1,6 @@
 from django.utils.translation import gettext_lazy
 from rest_framework.exceptions import ValidationError
 
-
-###################################################################################
-# DJANGO VALIDATORS
-###################################################################################
-
 class LowerCaseUnique(object):
     def __init__(self, type):
         self.type = type
@@ -15,7 +10,3 @@ class LowerCaseUnique(object):
         for t in globals()[self.type].effective.all():
             if field_data.lower() == t.name.lover():
                 raise ValidationError(self.error_message)
-
-###################################################################################
-# DJANGO VALIDATORS END
-###################################################################################

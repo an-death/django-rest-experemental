@@ -20,7 +20,7 @@ app.conf.update(
 app.conf.beat_schedule = {
     'check_out_vacancies_every_day': {
         'task': 'tasks.check_out_vacancies',
-        'schedule': crontab(),
+        'schedule': crontab(minute=0, hour=0),
     },
 }
 app.autodiscover_tasks()

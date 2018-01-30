@@ -8,7 +8,7 @@ MAINTAINER andeath
 ENV NGINX_MAX_UPLOAD 0
 
 # Which uWSGI .ini file should be used, to make it customizable
-ENV UWSGI_INI /django_rest/uwsgi.ini
+ENV UWSGI_INI uwsgi.ini
 
 # URL under which static (not modified by Python) files will be requested
 # They will be served by Nginx directly, without being handled by uWSGI

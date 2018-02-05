@@ -20,3 +20,11 @@ class Vacancies(models.Model):
         app_label = APP_LABEL
         unique_together = ('url', 'id')
         ordering = ['date']
+
+    @classmethod
+    def save_item(cls, **kwargs):
+        try:
+            instance = cls.objects.create(**kwargs)
+            instance.save()
+        except Exception as e:
+            return e
